@@ -6,3 +6,5 @@ dist/
 Resources/AppIcon.iconset/
 video/node_modules/
 video/out/
+video/temp-old/
+video/public/music.wav

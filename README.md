@@ -27,6 +27,12 @@ in a **Codex Limits** list, alarmed for the exact reset time. When the reset mov
 curl -fsSL https://raw.githubusercontent.com/fenil210-cactus/refill/main/install.sh | bash
 ```
 
+Or with Homebrew:
+
+```bash
+brew install --cask fenil210-cactus/tap/refill
+```
+
 That's it. Click **Allow** when macOS asks for Reminders access. No Xcode, no developer account, no "unidentified developer" dialog.
 
 <details>
@@ -89,16 +95,16 @@ so Gatekeeper doesn't block it. Building from source needs only the free Command
 **Why Reminders and not plain notifications?** Reminders sync to your iPhone and Apple Watch, survive reboots, ring even if Refill isn't
 running, and you can snooze them.
 
-**macOS asked for Reminders access again after an update.** Expected for now. Ad-hoc signed builds get a new identity each version.
-Click Allow once more.
+**macOS asked for Reminders access again after an update.** It can happen on some macOS versions because builds are ad-hoc signed.
+Click Allow once more; your existing reminders are picked up, not duplicated.
 
 **Nothing shows up.** Run `refill doctor`. It shows the Codex path it found, the latest log event, and the last sync result.
 
 ## Roadmap
 
 - [ ] Claude Code limits (5-hour and weekly) as a second provider
-- [ ] Homebrew cask
-- [ ] Stable signing identity so updates keep the Reminders permission
+- [x] Homebrew cask
+- [ ] Stable self-signed identity so updates always keep the Reminders permission
 
 ## Develop
 
@@ -107,6 +113,8 @@ Click Allow once more.
 swift run Refill status         # run the CLI from source
 ./scripts/build-app.sh          # universal .app + zip in dist/
 ```
+
+Launch video: `cd video && npm install && npm run render` (Remotion; the score is synthesized by `scripts/music.mjs`).
 
 Code map: `Sources/RefillCore`: `CodexParsing` (both data shapes), `CodexSources` (app-server client, log reader, codex locator),
 `ReminderPlanner` (pure reconcile logic, unit tested), `RemindersStore` (EventKit). `Sources/Refill`: SwiftUI menu bar app and CLI.

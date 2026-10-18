@@ -4,19 +4,19 @@ import {AbsoluteFill, interpolate, useCurrentFrame, Easing} from 'remotion';
 // Faithful replica of the real Refill popover (SwiftUI MenuBarExtra over a blue desktop),
 // drawn in macOS points; callers scale it with `zoom`.
 export const SF = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
-const RED = '#FF5257', GREEN = '#22C38E', BLUE = '#0A84FF';
-const DIM = 'rgba(255,255,255,0.62)';
+export const RED = '#FF5257', GREEN = '#22C38E', BLUE = '#0A84FF';
+export const DIM = 'rgba(255,255,255,0.62)';
 const clampOpts = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
 export const BoltCircle: React.FC<{size?: number}> = ({size = 30}) => (
   <svg width={size} height={size} viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill={GREEN} />
     <path d="M16.4 6.5 9.6 16.1c-.3.4 0 1 .5 1h4.4l-1.1 6c-.1.6.6.9 1 .4l6.8-9.6c.3-.4 0-1-.5-1h-4.4l1.1-6c.1-.6-.6-.9-1-.4Z" fill="#fff" /></svg>
 );
-const Gear: React.FC = () => (
+export const Gear: React.FC = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="1.7"><circle cx="12" cy="12" r="3.2" />
     <path d="M12 2.8l1.6 2.3 2.7-.6.6 2.7 2.4 1.4-1.1 2.5 1.1 2.5-2.4 1.4-.6 2.7-2.7-.6L12 21.2l-1.6-2.3-2.7.6-.6-2.7-2.4-1.4 1.1-2.5-1.1-2.5 2.4-1.4.6-2.7 2.7.6Z" strokeLinejoin="round" /></svg>
 );
-const CloseCircle: React.FC = () => (
+export const CloseCircle: React.FC = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="1.7"><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6m0-6-6 6" strokeLinecap="round" /></svg>
 );
 const Reset: React.FC<{c?: string}> = ({c = DIM}) => (
@@ -25,14 +25,14 @@ const Reset: React.FC<{c?: string}> = ({c = DIM}) => (
 const BellBadge: React.FC = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill={GREEN}><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-1.7 1.7A.75.75 0 0 0 3.83 19h16.34a.75.75 0 0 0 .53-1.3Z" /><circle cx="19" cy="5" r="4" /></svg>
 );
-const Sync: React.FC<{spin?: number}> = ({spin = 0}) => (
+export const Sync: React.FC<{spin?: number}> = ({spin = 0}) => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" style={{transform: `rotate(${spin}deg)`}}><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v4.5h-4.5" /></svg>
 );
 export const HourglassSF: React.FC<{size?: number}> = ({size = 15}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="#fff"><path d="M6 2h12v2c0 3-2 5-4.3 6.6.2.2.3.3.3.5v1.8c0 .2-.1.3-.3.5C16 15 18 17 18 20v2H6v-2c0-3 2-5 4.3-6.6a.7.7 0 0 1-.3-.5v-1.8c0-.2.1-.3.3-.5C8 9 6 7 6 4V2Zm2.2 2c.3 2 1.8 3.4 3.8 4.6 2-1.2 3.5-2.6 3.8-4.6H8.2Zm3.8 10.4c-2 1.2-3.5 2.6-3.8 4.6h7.6c-.3-2-1.8-3.4-3.8-4.6Z" /></svg>
 );
 
-const Card: React.FC<{title: string; pct: number; resets: string; reminder: string; tint: string; barIn: number}> = ({title, pct, resets, reminder, tint, barIn}) => (
+export const Card: React.FC<{title: string; pct: number; resets: string; reminder: string; tint: string; barIn: number}> = ({title, pct, resets, reminder, tint, barIn}) => (
   <div style={{background: 'rgba(255,255,255,0.075)', borderRadius: 12, padding: '12px 13px 13px'}}>
     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline'}}>
       <div style={{fontSize: 13, fontWeight: 600}}>{title}</div>
@@ -46,14 +46,14 @@ const Card: React.FC<{title: string; pct: number; resets: string; reminder: stri
   </div>
 );
 
-const Popup: React.FC<{value: string; flash: number}> = ({value, flash}) => (
+export const Popup: React.FC<{value: string; flash: number}> = ({value, flash}) => (
   <div style={{display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px 2px 9px', borderRadius: 5, fontSize: 11.5,
     background: `rgba(255,255,255,${0.13 + flash * 0.25})`, boxShadow: flash > 0 ? `0 0 0 ${2 * flash}px rgba(10,132,255,${flash})` : 'none'}}>
     {value}
     <svg width="7" height="11" viewBox="0 0 7 11" fill="none" stroke="#fff" strokeWidth="1.4"><path d="M1 4 3.5 1.5 6 4M1 7l2.5 2.5L6 7" /></svg>
   </div>
 );
-const Toggle: React.FC<{on: number}> = ({on}) => (
+export const Toggle: React.FC<{on: number}> = ({on}) => (
   <div style={{width: 38, height: 22, borderRadius: 11, background: on > 0.5 ? BLUE : 'rgba(255,255,255,0.2)', position: 'relative'}}>
     <div style={{position: 'absolute', top: 2, left: 2 + on * 16, width: 18, height: 18, borderRadius: 9, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.3)'}} />
   </div>

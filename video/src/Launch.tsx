@@ -13,7 +13,7 @@ const TIMELINE = timeline as [string, number][];
 export const TOTAL = TIMELINE.reduce((a, [, d]) => a + d, 0);
 
 /** Short crossfade + slight zoom between scenes. */
-const SceneWrap: React.FC<{dur: number; children: React.ReactNode; last: boolean}> = ({dur, children, last}) => {
+export const SceneWrap: React.FC<{dur: number; children: React.ReactNode; last: boolean}> = ({dur, children, last}) => {
   const f = useCurrentFrame();
   const o = interpolate(f, [0, 6, dur - 6, dur], [0, 1, 1, last ? 1 : 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const s = interpolate(f, [0, 8], [1.03, 1], {extrapolateRight: 'clamp'});

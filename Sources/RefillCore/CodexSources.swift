@@ -24,6 +24,9 @@ public enum CodexLocator {
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
     }
 
+    /// Codex has been used on this Mac (it creates its home on first run). Cheap enough to call from views.
+    public static var isInstalled: Bool { FileManager.default.fileExists(atPath: codexHome.path) }
+
     /// Directories GUI apps don't get on PATH but where `codex` (and `node`, for npm installs) usually live.
     public static var extraSearchDirs: [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path

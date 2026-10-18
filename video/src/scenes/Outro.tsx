@@ -4,7 +4,7 @@ import {Backdrop, C, Headline, MacWindow, mono, typed, usePop, useVertical} from
 
 const clampOpts = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
-const RemindersGlyph: React.FC<{size: number}> = ({size}) => (
+export const RemindersGlyph: React.FC<{size: number}> = ({size}) => (
   <div style={{width: size, height: size, borderRadius: size * 0.24, background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: size * 0.1, padding: size * 0.16, flexShrink: 0}}>
     {['#FF9F0A', '#0A84FF', '#FF453A'].map((c) => (
       <div key={c} style={{display: 'flex', alignItems: 'center', gap: size * 0.08}}>
@@ -15,14 +15,14 @@ const RemindersGlyph: React.FC<{size: number}> = ({size}) => (
   </div>
 );
 
-const Notification: React.FC<{scale?: number; style?: React.CSSProperties; light?: boolean}> = ({scale = 1, style, light}) => (
+export const Notification: React.FC<{scale?: number; style?: React.CSSProperties; light?: boolean; title?: string; body?: string}> = ({scale = 1, style, light, title = "Codex unblocked: 5-hour limit resets", body = "Fresh limit at 8:02 PM. Go build."}) => (
   <div style={{width: 520 * scale, borderRadius: 26 * scale, padding: `${18 * scale}px ${20 * scale}px`, display: 'flex', gap: 14 * scale, alignItems: 'center',
     background: light ? 'rgba(245,245,247,0.86)' : 'rgba(40,44,46,0.82)', color: light ? '#111' : '#fff', backdropFilter: 'blur(30px)', boxShadow: '0 20px 60px rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.14)', ...style}}>
     <RemindersGlyph size={54 * scale} />
     <div style={{flex: 1, minWidth: 0}}>
       <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 17 * scale, opacity: 0.6, fontWeight: 600}}><span>REMINDERS</span><span>now</span></div>
-      <div style={{fontSize: 21 * scale, fontWeight: 700, marginTop: 3 * scale}}>Codex unblocked: 5-hour limit resets</div>
-      <div style={{fontSize: 19 * scale, opacity: 0.75, marginTop: 2 * scale}}>Fresh limit at 8:02 PM. Go build.</div>
+      <div style={{fontSize: 21 * scale, fontWeight: 700, marginTop: 3 * scale}}>{title}</div>
+      <div style={{fontSize: 19 * scale, opacity: 0.75, marginTop: 2 * scale}}>{body}</div>
     </div>
   </div>
 );

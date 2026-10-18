@@ -64,7 +64,7 @@ struct MenuView: View {
             if model.result == nil {
                 HStack { ProgressView().controlSize(.small); Text("Reading your limits…").foregroundStyle(.secondary) }
             } else if model.visibleProviders.isEmpty {
-                Notice(title: "Nothing to track", message: "Turn on Codex or Claude Code in Settings.", icon: "questionmark.circle")
+                Notice(title: "Nothing to track yet", message: "Refill follows Codex and Claude Code limits. Use one of them on this Mac, or turn it on in Settings.", icon: "questionmark.circle")
             } else {
                 ForEach(model.visibleProviders, id: \.self) { providerSection($0) }
             }

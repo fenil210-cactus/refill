@@ -177,9 +177,16 @@ final class AppModel: ObservableObject {
 
     var enabledProviders: [Provider] { Provider.allCases.filter { !settings.disabledProviders.contains($0.rawValue) } }
 
-    /// Sections in the popover: Claude only appears once connected, or as a "Connect" card if Claude Code is installed.
+    /// Sections in the popover: a tool you don't use stays hidden. Codex shows once it has run on this Mac
+    /// (or reports data); Claude Code once connected, or as a "Connect" card if it is installed.
     var visibleProviders: [Provider] {
-        enabledProviders.filter { $0 != .claude || claudeConnected || ClaudeStatusLine.isInstalled }
+        enabledProviders.filter { p in
+            if result?.snapshots[p.rawValue] != nil { return true }
+            switch p {
+            case .codex: return CodexLocator.isInstalled || !codexPath.isEmpty
+            case .claude: return claudeConnected || ClaudeStatusLine.isInstalled
+            }
+        }
     }
 
     func windows(for p: Provider) -> [LimitWindow] {

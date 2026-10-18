@@ -54,8 +54,8 @@ export const fadeInOut = (f: number, dur: number, inLen = 8, outLen = 8) =>
   interpolate(f, [0, inLen, dur - outLen, dur], [0, 1, 1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 
 /** Big headline that rises in word by word. */
-export const Headline: React.FC<{text: string; delay?: number; size?: number; color?: string; accent?: string[]; style?: React.CSSProperties}> = ({
-  text, delay = 0, size = 92, color = C.ink, accent = [], style,
+export const Headline: React.FC<{text: string; delay?: number; size?: number; color?: string; accent?: string[]; accentColor?: string; style?: React.CSSProperties}> = ({
+  text, delay = 0, size = 92, color = C.ink, accent = [], accentColor = C.mint, style,
 }) => {
   const f = useCurrentFrame();
   // "|" forces a line break.
@@ -70,7 +70,7 @@ export const Headline: React.FC<{text: string; delay?: number; size?: number; co
         const t = interpolate(f - delay - n++ * 3, [0, 12], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic)});
         const isAccent = accents.includes(strip(w));
         return (
-          <span key={i} style={{display: 'inline-block', opacity: t, transform: `translateY(${(1 - t) * size * 0.5}px)`, filter: `blur(${(1 - t) * 8}px)`, color: isAccent ? C.mint : color}}>
+          <span key={i} style={{display: 'inline-block', opacity: t, transform: `translateY(${(1 - t) * size * 0.5}px)`, filter: `blur(${(1 - t) * 8}px)`, color: isAccent ? accentColor : color}}>
             {w}
           </span>
         );

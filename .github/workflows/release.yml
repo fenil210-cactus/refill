@@ -1,0 +1,22 @@
+name: Release
+on:
+  push: { tags: ["v*"] }
+
+permissions: { contents: write }
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: ./scripts/test.sh
+      - name: Build
+        run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/build-app.sh
+      - name: Publish
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          shasum -a 256 dist/Refill.zip | tee dist/Refill.zip.sha256
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            && gh release upload "$GITHUB_REF_NAME" dist/Refill.zip dist/Refill.zip.sha256 --clobber \
+            || gh release create "$GITHUB_REF_NAME" dist/Refill.zip dist/Refill.zip.sha256 --generate-notes

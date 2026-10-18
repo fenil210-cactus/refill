@@ -14,6 +14,8 @@ final class AppModel: ObservableObject {
     @Published var useLive: Bool { didSet { UserDefaults.standard.set(useLive, forKey: "useLive") } }
     @Published var pollMinutes: Int { didSet { UserDefaults.standard.set(pollMinutes, forKey: "pollMinutes"); restartPoll() } }
     @Published var launchAtLogin: Bool = false
+    @Published var claudeConnected = ClaudeStatusLine.isConnected
+    @Published var claudeConnectError: String?
 
     private let engine = SyncEngine()
     private var pollTimer: Timer?
@@ -42,7 +44,8 @@ final class AppModel: ObservableObject {
             Task { @MainActor in self?.now = Date() }
         }
         restartPoll()
-        watchCodexSessions()
+        watchUsageFiles()
+        refreshClaudeConnection()
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.scheduleSync(after: 5) }
         }
@@ -60,7 +63,7 @@ final class AppModel: ObservableObject {
         syncing = true
         let s = settings, path = codexPath.isEmpty ? nil : codexPath, useLive = live && self.useLive
         Task {
-            let r = await engine.sync(settings: s, codexPathOverride: path, useLive: useLive, known: self.result?.snapshot)
+            let r = await engine.sync(settings: s, codexPathOverride: path, useLive: useLive, known: self.result?.snapshots ?? [:])
             self.result = r
             SyncReport(r).save()
             self.syncing = false
@@ -92,17 +95,20 @@ final class AppModel: ObservableObject {
     /// Re-check right after the next reset so the following window's reminder is set up promptly.
     private func scheduleResetRefresh() {
         resetTimer?.invalidate()
-        guard let next = result?.snapshot?.windows.map(\.resetsAt).filter({ $0 > Date() }).min() else { return }
+        guard let next = result?.windows.map(\.resetsAt).filter({ $0 > Date() }).min() else { return }
         let delay = next.timeIntervalSinceNow + 60
         resetTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.syncNow() }
         }
     }
 
-    /// Codex appends a token_count event to its session log on every turn: that's our "usage changed" signal.
-    private func watchCodexSessions() {
-        let path = CodexLocator.codexHome.appendingPathComponent("sessions").path
-        guard FileManager.default.fileExists(atPath: path) else { return }
+    /// "Usage changed" signals: Codex appends a token_count event to its session log on every turn, and
+    /// Claude Code's status line (via `Refill claude-statusline`) rewrites Refill's Claude file.
+    private func watchUsageFiles() {
+        try? FileManager.default.createDirectory(at: ClaudeStatusLine.directory, withIntermediateDirectories: true)
+        let paths = [CodexLocator.codexHome.appendingPathComponent("sessions").path, ClaudeStatusLine.directory.path]
+            .filter { FileManager.default.fileExists(atPath: $0) }
+        guard !paths.isEmpty else { return }
         var ctx = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(),
                                        retain: nil, release: nil, copyDescription: nil)
         let cb: FSEventStreamCallback = { _, info, _, _, _, _ in
@@ -110,7 +116,7 @@ final class AppModel: ObservableObject {
             let model = Unmanaged<AppModel>.fromOpaque(info).takeUnretainedValue()
             Task { @MainActor in model.scheduleSync(after: 8, live: false) }
         }
-        guard let stream = FSEventStreamCreate(nil, cb, &ctx, [path] as CFArray,
+        guard let stream = FSEventStreamCreate(nil, cb, &ctx, paths as CFArray,
                                                FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 3,
                                                FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents)) else { return }
         FSEventStreamSetDispatchQueue(stream, .main)
@@ -135,18 +141,62 @@ final class AppModel: ObservableObject {
         if enabled { settings.disabledWindowMinutes.remove(minutes) } else { settings.disabledWindowMinutes.insert(minutes) }
     }
 
+    /// One switch per provider. For Claude Code that switch *is* the status line connection,
+    /// so turning it off also hands Claude Code its previous status line back.
+    func toggleProvider(_ p: Provider, enabled: Bool) {
+        if enabled { settings.disabledProviders.remove(p.rawValue) } else { settings.disabledProviders.insert(p.rawValue) }
+        if p == .claude, enabled != claudeConnected { setClaudeConnected(enabled) }
+    }
+
+    func isEnabled(_ p: Provider) -> Bool {
+        !settings.disabledProviders.contains(p.rawValue) && (p != .claude || claudeConnected)
+    }
+
+    /// Points Claude Code's status line at this binary (keeping the user's existing status line), or undoes it.
+    func setClaudeConnected(_ on: Bool) {
+        do {
+            if on {
+                guard let exe = Bundle.main.executableURL?.resolvingSymlinksInPath().path else { return }
+                try ClaudeStatusLine.connect(refillPath: exe)
+                settings.disabledProviders.remove(Provider.claude.rawValue)
+            } else {
+                try ClaudeStatusLine.disconnect()
+            }
+            claudeConnectError = nil
+        } catch { claudeConnectError = error.localizedDescription }
+        claudeConnected = ClaudeStatusLine.isConnected
+        scheduleSync(after: 1, live: false)
+    }
+
+    /// Re-points an existing connection if Refill.app moved (e.g. reinstalled elsewhere).
+    private func refreshClaudeConnection() {
+        if claudeConnected { setClaudeConnected(true) }
+    }
+
     // MARK: Derived
 
-    var windows: [LimitWindow] { result?.snapshot?.windows.sorted { $0.windowMinutes < $1.windowMinutes } ?? [] }
+    var enabledProviders: [Provider] { Provider.allCases.filter { !settings.disabledProviders.contains($0.rawValue) } }
 
-    /// Menu bar text: countdown when you're blocked, otherwise the tightest window's usage.
+    /// Sections in the popover: Claude only appears once connected, or as a "Connect" card if Claude Code is installed.
+    var visibleProviders: [Provider] {
+        enabledProviders.filter { $0 != .claude || claudeConnected || ClaudeStatusLine.isInstalled }
+    }
+
+    func windows(for p: Provider) -> [LimitWindow] {
+        (result?.snapshots[p.rawValue]?.windows ?? []).sorted { ($0.limitId != p.rawValue ? 1 : 0, $0.windowMinutes) < ($1.limitId != p.rawValue ? 1 : 0, $1.windowMinutes) }
+    }
+
+    var windows: [LimitWindow] { enabledProviders.flatMap { windows(for: $0) } }
+
+    /// Menu bar text: countdown when you're blocked, otherwise the tightest main window's usage across providers.
     var menuBarTitle: String {
-        guard let w = windows.first(where: { $0.limitId == "codex" }) ?? windows.first else { return "" }
         if let blocked = windows.filter({ $0.usedPercent >= 100 && $0.resetsAt > now }).max(by: { $0.resetsAt < $1.resetsAt }) {
             return Fmt.countdown(to: blocked.resetsAt, from: now)
         }
-        if w.resetsAt <= now { return "0%" }
-        return "\(Int(w.usedPercent.rounded()))%"
+        let main = windows.filter { $0.limitId == $0.provider }
+        guard !main.isEmpty else { return "" }
+        let used = main.map { $0.resetsAt <= now ? 0 : $0.usedPercent }.max() ?? 0
+        return "\(Int(used.rounded()))%"
     }
 
     var isBlocked: Bool { windows.contains { $0.usedPercent >= 100 && $0.resetsAt > now } }
@@ -165,6 +215,16 @@ final class AppModel: ObservableObject {
 }
 
 enum Fmt {
+    static func ago(_ date: Date, now: Date = Date()) -> String {
+        let m = Int(now.timeIntervalSince(date) / 60)
+        switch m {
+        case ..<1: return "just now"
+        case ..<60: return "\(m)m ago"
+        case ..<1440: return "\(m / 60)h ago"
+        default: return "\(m / 1440)d ago"
+        }
+    }
+
     static func countdown(to date: Date, from now: Date = Date()) -> String {
         let s = max(0, Int(date.timeIntervalSince(now)))
         let d = s / 86400, h = (s % 86400) / 3600, m = (s % 3600) / 60

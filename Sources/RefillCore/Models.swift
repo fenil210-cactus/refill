@@ -2,7 +2,7 @@ import Foundation
 
 /// One rate-limit window reported by a provider, e.g. Codex's 5-hour or weekly window.
 public struct LimitWindow: Equatable, Codable, Sendable {
-    public var provider: String        // "codex"
+    public var provider: String        // "codex", "claude"
     public var limitId: String         // "codex", "premium", ...
     public var limitName: String?
     public var usedPercent: Double
@@ -26,9 +26,17 @@ public struct LimitWindow: Equatable, Codable, Sendable {
     public var windowLabel: String { Self.label(forMinutes: windowMinutes) }
 
     public var providerLabel: String {
-        let base = provider == "codex" ? "Codex" : provider.capitalized
+        let base = Self.providerName(provider)
         if limitId == provider { return base }
         return "\(base) \(limitName ?? limitId)"
+    }
+
+    public static func providerName(_ provider: String) -> String {
+        switch provider {
+        case "codex": return "Codex"
+        case "claude": return "Claude"
+        default: return provider.capitalized
+        }
     }
 
     public static func label(forMinutes minutes: Int) -> String {
@@ -51,9 +59,16 @@ public struct LimitWindow: Equatable, Codable, Sendable {
     }
 }
 
+public enum Provider: String, CaseIterable, Codable, Sendable {
+    case codex, claude
+
+    public var displayName: String { LimitWindow.providerName(rawValue) }
+}
+
 public enum UsageSource: String, Equatable, Codable, Sendable {
     case live            // `codex app-server` → account/rateLimits/read
     case sessionLog      // last token_count event in ~/.codex/sessions
+    case statusLine      // Claude Code status line input, saved by `Refill claude-statusline`
 }
 
 public struct UsageSnapshot: Equatable, Codable, Sendable {
@@ -82,9 +97,28 @@ public struct RefillSettings: Equatable, Codable, Sendable {
     public var minUsedPercent: Double = 0
     /// Keys of windows to ignore, matched on window length: e.g. 300 (5h) or 10080 (weekly).
     public var disabledWindowMinutes: Set<Int> = []
-    public var listName: String = "Codex Limits"
+    public var listName: String = Self.defaultListName
+    public static let defaultListName = "AI Limits"
+    /// v1.0 default, from when Refill only tracked Codex. Migrated to `defaultListName` (the list is renamed in place).
+    public static let legacyListName = "Codex Limits"
     /// Minutes after a reset before its reminder is auto-completed.
     public var completeAfterMinutes: Int = 30
+    /// Providers to skip entirely, e.g. "claude". Their pending reminders are removed.
+    public var disabledProviders: Set<String> = []
 
     public init() {}
+
+    /// Missing keys keep their defaults, so settings saved by older versions still load.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = RefillSettings()
+        leadMinutes = try c.decodeIfPresent(Int.self, forKey: .leadMinutes) ?? d.leadMinutes
+        earlyHeadsUpMinutes = try c.decodeIfPresent(Int.self, forKey: .earlyHeadsUpMinutes) ?? d.earlyHeadsUpMinutes
+        minUsedPercent = try c.decodeIfPresent(Double.self, forKey: .minUsedPercent) ?? d.minUsedPercent
+        disabledWindowMinutes = try c.decodeIfPresent(Set<Int>.self, forKey: .disabledWindowMinutes) ?? d.disabledWindowMinutes
+        let savedList = try c.decodeIfPresent(String.self, forKey: .listName) ?? d.listName
+        listName = savedList == Self.legacyListName ? Self.defaultListName : savedList
+        completeAfterMinutes = try c.decodeIfPresent(Int.self, forKey: .completeAfterMinutes) ?? d.completeAfterMinutes
+        disabledProviders = try c.decodeIfPresent(Set<String>.self, forKey: .disabledProviders) ?? d.disabledProviders
+    }
 }

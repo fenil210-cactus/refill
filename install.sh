@@ -32,6 +32,8 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   quit_running
   for d in /Applications "$HOME/Applications"; do
     [[ -x "$d/$APP_NAME/Contents/MacOS/Refill" ]] && "$d/$APP_NAME/Contents/MacOS/Refill" unregister-login 2>/dev/null || true
+    # Give Claude Code its previous status line back before the binary it points at disappears.
+    [[ -x "$d/$APP_NAME/Contents/MacOS/Refill" ]] && "$d/$APP_NAME/Contents/MacOS/Refill" claude-disconnect >/dev/null 2>&1 || true
   done
   for d in /Applications "$HOME/Applications"; do
     [[ -d "$d/$APP_NAME" ]] && rm -rf "$d/$APP_NAME" && ok "removed $d/$APP_NAME"
@@ -41,7 +43,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   done
   rm -rf "$HOME/Library/Application Support/Refill"
   defaults delete com.fenil210.refill >/dev/null 2>&1 || true
-  ok "done. Your 'Codex Limits' list in Reminders was left in place; delete it there if you like."
+  ok "done. Your 'AI Limits' list in Reminders was left in place; delete it there if you like."
   exit 0
 fi
 
@@ -72,5 +74,5 @@ fi
 open "$dest/$APP_NAME"
 echo
 bold "⚡ Refill is in your menu bar."
-echo "  Click Allow when macOS asks for Reminders access. Reminders land in a 'Codex Limits' list,"
+echo "  Click Allow when macOS asks for Reminders access. Reminders land in an 'AI Limits' list,"
 echo "  and sync to your iPhone and Apple Watch if iCloud Reminders is on."

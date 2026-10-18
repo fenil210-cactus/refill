@@ -52,6 +52,9 @@ public enum ReminderPlanner {
         for r in existing where !r.isCompleted {
             if let due = r.dueDate, due.addingTimeInterval(grace) <= now {
                 actions.append(.complete(id: r.id))
+            } else if settings.disabledProviders.contains(provider(ofKey: r.key)) {
+                // Provider switched off: drop pending reminders, keep one that is ringing right now.
+                if (r.dueDate ?? .distantPast) > now { actions.append(.delete(id: r.id)) }
             } else if let due = r.dueDate, due <= now, !activeKeys.contains(r.key) {
                 continue   // just reset; leave visible until grace passes
             } else {
@@ -59,7 +62,7 @@ public enum ReminderPlanner {
             }
         }
 
-        for w in windows {
+        for w in windows where !settings.disabledProviders.contains(w.provider) {
             var candidates = (open[w.key] ?? []).sorted { ($0.dueDate ?? .distantPast) > ($1.dueDate ?? .distantPast) }
             let wanted = w.resetsAt > now
                 && !settings.disabledWindowMinutes.contains(w.windowMinutes)
@@ -115,6 +118,11 @@ public enum ReminderPlanner {
         """
         return ReminderSpec(key: w.key, title: title, notes: notes, dueDate: w.resetsAt,
                             alarmDates: alarms, highPriority: blocked)
+    }
+
+    /// Keys are "provider/limitId/windowMinutes" (see `LimitWindow.key`).
+    static func provider(ofKey key: String) -> String {
+        String(key.prefix { $0 != "/" })
     }
 
     static func close(_ a: Date?, _ b: Date?) -> Bool {

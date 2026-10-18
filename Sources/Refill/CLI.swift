@@ -4,14 +4,19 @@ import ServiceManagement
 
 enum CLI {
     static let help = """
-    Refill \(RefillInfo.version): Codex usage limits → Apple Reminders
+    Refill \(RefillInfo.version): Codex and Claude Code usage limits → Apple Reminders
 
     USAGE
       Refill              launch the menu bar app
-      Refill status       print your current Codex limits
+      Refill status       print your current Codex and Claude limits
       Refill status --json
       Refill sync         update reminders once, then exit
       Refill doctor       diagnose setup and show the app's last sync
+      Refill claude-statusline [--then <command>]
+                          Claude Code status line hook: saves rate_limits from stdin,
+                          then runs <command> (your previous status line)
+      Refill claude-connect | claude-disconnect
+                          point Claude Code's status line at Refill, or restore the previous one
       Refill --version
     """
 
@@ -24,7 +29,24 @@ enum CLI {
         case "status": status(json: args.contains("--json"))
         case "sync": sync()
         case "doctor": doctor()
+        case "claude-connect", "claude-disconnect":
+            do {
+                if cmd == "claude-connect" {
+                    guard let exe = Bundle.main.executableURL?.resolvingSymlinksInPath().path else { exit(1) }
+                    try ClaudeStatusLine.connect(refillPath: exe)
+                } else {
+                    try ClaudeStatusLine.disconnect()
+                }
+                print("Claude Code status line: \(ClaudeStatusLine.isConnected ? "connected" : "not connected") (\(ClaudeStatusLine.settingsURL.path))")
+            } catch {
+                FileHandle.standardError.write("\(error.localizedDescription)\n".data(using: .utf8)!)
+                exit(1)
+            }
+        case "claude-statusline":
+            let then = args.firstIndex(of: "--then").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
+            exit(ClaudeStatusLine.handle(input: FileHandle.standardInput.readDataToEndOfFile(), then: then))
         case "unregister-login": try? SMAppService.mainApp.unregister()   // used by the uninstaller
+        case "debug-snapshot": MainActor.assumeIsolated { Snapshot.run(args) }   // dev aid: render the popover to PNG
         case "--version", "-v": print(RefillInfo.version)
         case "--help", "-h", "help": print(help)
         default:
@@ -35,27 +57,39 @@ enum CLI {
     }
 
     static func status(json: Bool) {
-        let (snap, liveError) = UsageFetcher.fetch(codexPathOverride: savedCodexPath, useLive: true)
+        let providers = Provider.allCases.filter { !savedSettings.disabledProviders.contains($0.rawValue) }
+        let results = providers.map { p in (p, UsageFetcher.fetch(p, codexPathOverride: savedCodexPath, useLive: true)) }
         if json {
             let enc = JSONEncoder()
             enc.outputFormatting = [.prettyPrinted, .sortedKeys]
             enc.dateEncodingStrategy = .iso8601
-            if let snap, let d = try? enc.encode(snap) { print(String(decoding: d, as: UTF8.self)) } else { print("null") }
+            let snaps = Dictionary(uniqueKeysWithValues: results.compactMap { p, r in r.0.map { (p.rawValue, $0) } })
+            if let d = try? enc.encode(snaps) { print(String(decoding: d, as: UTF8.self)) } else { print("{}") }
             return
         }
-        guard let snap else {
-            print("No Codex usage found. \(liveError ?? "")")
-            exit(1)
-        }
-        let src = snap.source == .live ? "live" : "session logs (live failed: \(liveError ?? "off"))"
-        print("Codex \(snap.planType ?? "") · source: \(src)")
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short
-        for w in snap.windows.sorted(by: { $0.windowMinutes < $1.windowMinutes }) {
-            let bar = String(repeating: "█", count: Int(min(100, w.usedPercent) / 5))
-                .padding(toLength: 20, withPad: "░", startingAt: 0)
-            let when = w.resetsAt > Date() ? "resets \(f.string(from: w.resetsAt))" : "already reset"
-            print("  \(w.providerLabel) \(w.windowLabel.padding(toLength: 7, withPad: " ", startingAt: 0)) \(bar) \(String(format: "%3.0f", w.usedPercent))%  \(when)")
+        var found = false
+        for (p, (snap, error)) in results {
+            guard let snap else {
+                print("\(p.displayName) · no usage found. \(error ?? "")")
+                continue
+            }
+            found = true
+            let src: String
+            switch snap.source {
+            case .live: src = "live"
+            case .sessionLog: src = "session logs (live failed: \(error ?? "off"))"
+            case .statusLine: src = "Claude Code status line, \(f.string(from: snap.observedAt))"
+            }
+            print("\(p.displayName) \(snap.planType ?? "") · source: \(src)")
+            for w in snap.windows.sorted(by: { $0.windowMinutes < $1.windowMinutes }) {
+                let bar = String(repeating: "█", count: Int(min(100, w.usedPercent) / 5))
+                    .padding(toLength: 20, withPad: "░", startingAt: 0)
+                let when = w.resetsAt > Date() ? "resets \(f.string(from: w.resetsAt))" : "already reset"
+                print("  \(w.providerLabel) \(w.windowLabel.padding(toLength: 7, withPad: " ", startingAt: 0)) \(bar) \(String(format: "%3.0f", w.usedPercent))%  \(when)")
+            }
         }
+        if !found { exit(1) }
     }
 
     static func doctor() {
@@ -63,6 +97,8 @@ enum CLI {
         print("codex CLI:      \(codex ?? "NOT FOUND (install Codex or set its path in Settings)")")
         print("codex home:     \(CodexLocator.codexHome.path)")
         print("session logs:   \(CodexSessionLogSource.latest().map { "latest event \($0.observedAt)" } ?? "none in the last 8 days")")
+        print("claude config:  \(ClaudeStatusLine.settingsURL.path) · status line \(ClaudeStatusLine.isConnected ? "connected" : "NOT connected (Settings › Read Claude Code limits)")")
+        print("claude limits:  \(ClaudeStatusLine.latest().map { "last seen \($0.observedAt)" } ?? "none yet (\(ClaudeStatusLine.cacheURL.path))")")
         guard let data = try? Data(contentsOf: SyncReport.url) else {
             print("app sync:       no report yet (is Refill running? open ~/Applications/Refill.app)")
             return
@@ -76,7 +112,8 @@ enum CLI {
         Task {
             let r = await SyncEngine().sync(settings: savedSettings, codexPathOverride: savedCodexPath, useLive: true)
             if let e = r.reminderError { print("Reminders: \(e)") }
-            print("Windows: \(r.snapshot?.windows.count ?? 0) · changes: \(r.changes) · open reminders: \(r.reminders.count)")
+            for (p, e) in r.errors.sorted(by: { $0.key < $1.key }) where r.snapshots[p] == nil { print("\(p): \(e)") }
+            print("Windows: \(r.windows.count) · changes: \(r.changes) · open reminders: \(r.reminders.count)")
             sem.signal()
         }
         sem.wait()

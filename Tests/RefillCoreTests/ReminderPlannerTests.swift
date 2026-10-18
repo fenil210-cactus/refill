@@ -34,6 +34,27 @@ struct ReminderPlannerTests {
         #expect(b.title == "Codex weekly limit resets")
     }
 
+    @Test func providersShareOneListWithoutTouchingEachOther() {
+        let codex = window(resetsIn: 3600)
+        let claude = LimitWindow(provider: "claude", limitId: "claude", usedPercent: 50, windowMinutes: 300,
+                                 resetsAt: now.addingTimeInterval(7200))
+        let existing = [stored(spec(codex), id: "codex"), stored(spec(claude), id: "claude")]
+        #expect(ReminderPlanner.plan(windows: [codex, claude], existing: existing, settings: settings, now: now).isEmpty)
+        #expect(spec(claude).title == "Claude 5-hour limit resets")
+
+        // Turning Claude off removes its pending reminder even though it's no longer fetched; Codex stays.
+        var s = settings
+        s.disabledProviders = ["claude"]
+        #expect(ReminderPlanner.plan(windows: [codex], existing: existing, settings: s, now: now) == [.delete(id: "claude")])
+    }
+
+    @Test func settingsSavedByOlderVersionsStillLoad() throws {
+        let v1 = #"{"leadMinutes":15,"earlyHeadsUpMinutes":0,"minUsedPercent":50,"disabledWindowMinutes":[10080],"listName":"Mine","completeAfterMinutes":30}"#
+        let s = try JSONDecoder().decode(RefillSettings.self, from: Data(v1.utf8))
+        #expect(s.leadMinutes == 15 && s.listName == "Mine" && s.disabledWindowMinutes == [10080])
+        #expect(s.disabledProviders.isEmpty)
+    }
+
     @Test func unchangedStateIsANoOp() {
         let w = window(resetsIn: 3600)
         #expect(ReminderPlanner.plan(windows: [w], existing: [stored(spec(w))], settings: settings, now: now).isEmpty)

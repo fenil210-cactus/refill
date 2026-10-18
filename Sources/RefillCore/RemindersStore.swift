@@ -31,7 +31,15 @@ public final class RemindersStore {
 
     /// Finds the list by name, creating it in the default reminders account (iCloud if enabled).
     public func list(named name: String) throws -> EKCalendar {
-        if let c = store.calendars(for: .reminder).first(where: { $0.title == name }) { return c }
+        let lists = store.calendars(for: .reminder)
+        if let c = lists.first(where: { $0.title == name }) { return c }
+        // Upgrading from v1.0: rename the old "Codex Limits" list so its reminders (and iCloud sync) carry over.
+        if name == RefillSettings.defaultListName,
+           let old = lists.first(where: { $0.title == RefillSettings.legacyListName && $0.allowsContentModifications }) {
+            old.title = name
+            try store.saveCalendar(old, commit: true)
+            return old
+        }
         let cal = EKCalendar(for: .reminder, eventStore: store)
         cal.title = name
         cal.cgColor = CGColor(red: 0.06, green: 0.73, blue: 0.51, alpha: 1)
